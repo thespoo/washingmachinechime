@@ -11,6 +11,7 @@ function state(overrides = {}) {
     assistantToken: "1:old",
     busy: false,
     error: false,
+    submissionToken: "0",
     userToken: "1:first",
     ...overrides,
   };
@@ -38,11 +39,15 @@ test("reports a streamed assistant response after it settles", () => {
   });
 
   detector.reset(state());
-  detector.update(state({ userToken: "2:second" }), 10);
+  detector.update(
+    state({ submissionToken: "1", userToken: "2:second" }),
+    10,
+  );
   detector.update(
     state({
       assistantToken: "2:partial",
       busy: true,
+      submissionToken: "1",
       userToken: "2:second",
     }),
     20,
@@ -50,6 +55,7 @@ test("reports a streamed assistant response after it settles", () => {
   detector.update(
     state({
       assistantToken: "2:final",
+      submissionToken: "1",
       userToken: "2:second",
     }),
     40,
@@ -58,6 +64,7 @@ test("reports a streamed assistant response after it settles", () => {
   const waiting = detector.update(
     state({
       assistantToken: "2:final",
+      submissionToken: "1",
       userToken: "2:second",
     }),
     139,
@@ -65,6 +72,7 @@ test("reports a streamed assistant response after it settles", () => {
   const finished = detector.update(
     state({
       assistantToken: "2:final",
+      submissionToken: "1",
       userToken: "2:second",
     }),
     140,
@@ -100,11 +108,15 @@ test("cancels a pending turn when its assistant response errors", () => {
   });
 
   detector.reset(state());
-  detector.update(state({ userToken: "2:second" }), 1);
+  detector.update(
+    state({ submissionToken: "1", userToken: "2:second" }),
+    1,
+  );
   detector.update(
     state({
       assistantToken: "2:partial",
       busy: true,
+      submissionToken: "1",
       userToken: "2:second",
     }),
     2,
@@ -113,6 +125,7 @@ test("cancels a pending turn when its assistant response errors", () => {
     state({
       assistantToken: "2:error",
       error: true,
+      submissionToken: "1",
       userToken: "2:second",
     }),
     3,
@@ -120,6 +133,7 @@ test("cancels a pending turn when its assistant response errors", () => {
   detector.update(
     state({
       assistantToken: "2:error",
+      submissionToken: "1",
       userToken: "2:second",
     }),
     100,
@@ -137,18 +151,30 @@ test("a new user turn supersedes a response still settling", () => {
   });
 
   detector.reset(state());
-  detector.update(state({ userToken: "2:second" }), 5);
   detector.update(
-    state({ assistantToken: "2:done", userToken: "2:second" }),
+    state({ submissionToken: "1", userToken: "2:second" }),
+    5,
+  );
+  detector.update(
+    state({
+      assistantToken: "2:done",
+      submissionToken: "1",
+      userToken: "2:second",
+    }),
     10,
   );
   detector.update(
-    state({ assistantToken: "2:done", userToken: "3:third" }),
+    state({
+      assistantToken: "2:done",
+      submissionToken: "2",
+      userToken: "3:third",
+    }),
     20,
   );
   detector.update(
     state({
       assistantToken: "3:new-done",
+      submissionToken: "2",
       userToken: "3:third",
     }),
     30,
@@ -156,10 +182,44 @@ test("a new user turn supersedes a response still settling", () => {
   detector.update(
     state({
       assistantToken: "3:new-done",
+      submissionToken: "2",
       userToken: "3:third",
     }),
     130,
   );
 
   assert.equal(completions.length, 1);
+});
+
+test("ignores conversation history that hydrates after initialization", () => {
+  const completions = [];
+  const detector = new TurnCompletionDetector({
+    onComplete: (completion) => completions.push(completion),
+    settleMs: 10,
+  });
+
+  detector.reset(
+    state({
+      assistantPresent: false,
+      assistantToken: "",
+      userToken: "",
+    }),
+  );
+  detector.update(
+    state({
+      assistantToken: "1:historical",
+      userToken: "1:historical-user",
+    }),
+    5,
+  );
+  detector.update(
+    state({
+      assistantToken: "2:more-history",
+      userToken: "2:more-history",
+    }),
+    100,
+  );
+
+  assert.equal(detector.isPending(), false);
+  assert.deepEqual(completions, []);
 });

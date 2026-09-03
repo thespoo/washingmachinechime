@@ -17,6 +17,7 @@
       assistantToken: String((snapshot && snapshot.assistantToken) || ""),
       busy: Boolean(snapshot && snapshot.busy),
       error: Boolean(snapshot && snapshot.error),
+      submissionToken: String((snapshot && snapshot.submissionToken) || ""),
       userToken: String((snapshot && snapshot.userToken) || ""),
     };
   }
@@ -70,17 +71,13 @@
       }
 
       const previous = this.previous;
-      const userChanged =
-        Boolean(snapshot.userToken) &&
-        Boolean(previous.userToken) &&
-        snapshot.userToken !== previous.userToken;
-      const firstUserAppeared =
-        Boolean(snapshot.userToken) && !previous.userToken;
+      const submissionChanged =
+        snapshot.submissionToken !== previous.submissionToken;
       const busyStarted = snapshot.busy && !previous.busy;
 
       if (
-        (!this.pending && (userChanged || firstUserAppeared || busyStarted)) ||
-        (this.pending && (userChanged || firstUserAppeared))
+        (!this.pending && (submissionChanged || busyStarted)) ||
+        (this.pending && submissionChanged)
       ) {
         this.startTurn(previous, at);
       }

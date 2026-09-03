@@ -46,11 +46,14 @@ async function ensureOffscreenDocument() {
 
 async function playSound(volume) {
   await ensureOffscreenDocument();
-  await chrome.runtime.sendMessage({
+  const response = await chrome.runtime.sendMessage({
     target: "offscreen",
     type: "PLAY_SOUND",
     volume,
   });
+  if (!response || !response.played) {
+    throw new Error("Audio playback failed.");
+  }
 }
 
 async function getSettings() {

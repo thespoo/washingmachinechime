@@ -48,6 +48,17 @@
     return;
   }
 
+  const COMPOSER_SELECTOR = [
+    "#prompt-textarea",
+    'div.ProseMirror[contenteditable="true"]',
+    '[contenteditable="true"][role="textbox"]',
+  ].join(",");
+  const SEND_BUTTON_SELECTOR = [
+    'button[data-testid="send-button"]',
+    'button[aria-label="Send message" i]',
+    'button[aria-label="Send prompt" i]',
+  ].join(",");
+
   function queryFirstPopulated(selectors) {
     for (const selector of selectors) {
       const elements = Array.from(document.querySelectorAll(selector));
@@ -83,6 +94,9 @@
     return selectors.some((selector) => document.querySelector(selector));
   }
 
+  let submissionSequence = 0;
+  let lastSubmissionAt = 0;
+
   function snapshot() {
     const assistantElements = queryFirstPopulated(provider.assistantSelectors);
     const userElements = queryFirstPopulated(provider.userSelectors);
@@ -102,12 +116,14 @@
       assistantToken: collectionToken(assistantElements),
       busy: selectorExists(provider.busySelectors),
       error: assistantErrored,
+      submissionToken: String(submissionSequence),
       userToken: collectionToken(userElements),
     };
   }
 
   let currentUrl = location.href;
   let evaluationTimer = null;
+  let lastEvaluatedSubmissionSequence = submissionSequence;
 
   const detector = new detectorApi.TurnCompletionDetector({
     onComplete(completion) {
@@ -136,13 +152,18 @@
 
     if (location.href !== currentUrl) {
       currentUrl = location.href;
-      if (!detector.isPending()) {
+      if (
+        !detector.isPending() &&
+        submissionSequence === lastEvaluatedSubmissionSequence
+      ) {
         detector.reset(nextSnapshot);
+        lastEvaluatedSubmissionSequence = submissionSequence;
         return;
       }
     }
 
     const result = detector.update(nextSnapshot);
+    lastEvaluatedSubmissionSequence = submissionSequence;
     if (result.checkInMs !== null) {
       scheduleEvaluation(Math.max(50, result.checkInMs + 25));
     }
@@ -172,6 +193,61 @@
     childList: true,
     subtree: true,
   });
+
+  function markSubmission() {
+    const now = Date.now();
+    if (now - lastSubmissionAt < 250) {
+      return;
+    }
+    lastSubmissionAt = now;
+    submissionSequence += 1;
+    scheduleEvaluation(0);
+  }
+
+  document.addEventListener(
+    "submit",
+    (event) => {
+      if (
+        event.target instanceof Element &&
+        event.target.querySelector(COMPOSER_SELECTOR)
+      ) {
+        markSubmission();
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      const button =
+        event.target instanceof Element
+          ? event.target.closest(SEND_BUTTON_SELECTOR)
+          : null;
+      if (button && !button.disabled) {
+        markSubmission();
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      const inComposer =
+        event.target instanceof Element &&
+        event.target.closest(COMPOSER_SELECTOR);
+      if (
+        inComposer &&
+        event.key === "Enter" &&
+        !event.shiftKey &&
+        !event.isComposing
+      ) {
+        markSubmission();
+      }
+    },
+    true,
+  );
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message && message.type === "CHECK_PAGE_STATE") {
