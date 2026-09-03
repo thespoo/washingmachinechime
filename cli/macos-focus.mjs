@@ -61,10 +61,23 @@ export function terminalBundleCandidates(env = process.env) {
     .toLowerCase();
 
   if (termProgram === "vscode") {
-    candidates.add("com.microsoft.VSCode");
-    candidates.add("com.microsoft.VSCodeInsiders");
-    candidates.add("com.todesktop.230313mzl4w4u92");
-    candidates.add("com.cursor.Cursor");
+    const editorEvidence = [
+      env.VSCODE_GIT_ASKPASS_NODE,
+      env.VSCODE_IPC_HOOK_CLI,
+      env.VSCODE_NLS_CONFIG,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    if (editorEvidence.includes("cursor")) {
+      candidates.add("com.todesktop.230313mzl4w4u92");
+      candidates.add("com.cursor.Cursor");
+    } else if (editorEvidence.includes("visual studio code - insiders")) {
+      candidates.add("com.microsoft.VSCodeInsiders");
+    } else if (editorEvidence.includes("visual studio code")) {
+      candidates.add("com.microsoft.VSCode");
+    }
   } else {
     for (const bundle of TERM_PROGRAM_BUNDLES.get(termProgram) || []) {
       candidates.add(bundle);
@@ -168,6 +181,10 @@ export function evaluateMacFocus({
   selectedTty,
   sourceBundles,
 }) {
+  if (multiplexer) {
+    return { shouldPlay: false, reason: "terminal-multiplexer-unresolved" };
+  }
+
   if (!frontmostBundleId || !Array.isArray(sourceBundles)) {
     return { shouldPlay: false, reason: "focus-unknown" };
   }
@@ -182,10 +199,6 @@ export function evaluateMacFocus({
 
   if (!sourceIsFrontmost) {
     return { shouldPlay: true, reason: "terminal-not-frontmost" };
-  }
-
-  if (multiplexer) {
-    return { shouldPlay: false, reason: "terminal-multiplexer-active" };
   }
 
   const normalizedOrigin = normalizeTty(originTty);

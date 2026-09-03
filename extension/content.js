@@ -80,6 +80,23 @@
     return (hash >>> 0).toString(36);
   }
 
+  function elementText(element) {
+    if (!element) {
+      return "";
+    }
+    if ("value" in element && typeof element.value === "string") {
+      return element.value;
+    }
+    return element.textContent || "";
+  }
+
+  function promptFingerprint(value) {
+    const normalized = String(value || "").trim().replace(/\s+/g, " ");
+    return normalized
+      ? `${normalized.length}:${hashText(normalized)}`
+      : "";
+  }
+
   function collectionToken(elements) {
     if (elements.length === 0) {
       return "";
@@ -97,8 +114,11 @@
   }
 
   let cancellationSequence = 0;
+  let lastSubmittedPromptFingerprint = "";
   let submissionSequence = 0;
   let lastSubmissionAt = 0;
+  let lastUserNavigationAt = 0;
+  let stopRequestedAt = 0;
 
   function snapshot() {
     const assistantElements = queryFirstPopulated(provider.assistantSelectors);
@@ -120,6 +140,9 @@
       busy: selectorExists(provider.busySelectors),
       cancellationToken: String(cancellationSequence),
       error: assistantErrored,
+      latestUserFingerprint: promptFingerprint(
+        elementText(userElements.at(-1)),
+      ),
       submissionToken: String(submissionSequence),
       userToken: collectionToken(userElements),
     };
@@ -151,24 +174,79 @@
 
   function evaluate() {
     evaluationTimer = null;
+    const now = Date.now();
     const nextSnapshot = snapshot();
+
+    if (stopRequestedAt) {
+      const stopRequestAge = now - stopRequestedAt;
+      if (stopRequestAge > 2_000) {
+        stopRequestedAt = 0;
+      } else if (!nextSnapshot.busy) {
+        cancellationSequence += 1;
+        nextSnapshot.cancellationToken = String(cancellationSequence);
+        stopRequestedAt = 0;
+      }
+    }
 
     const nextPath = location.pathname;
     if (nextPath !== currentPath) {
       const routeChanged =
         routeApi.routeIdentity(provider.id, nextPath) !==
         routeApi.routeIdentity(provider.id, currentPath);
+      const submissionUnobserved =
+        submissionSequence !== lastEvaluatedSubmissionSequence;
+      const fromConversation = routeApi.conversationId(
+        provider.id,
+        currentPath,
+      );
+      const toConversation = routeApi.conversationId(
+        provider.id,
+        nextPath,
+      );
+      const recentSubmission =
+        lastSubmissionAt > 0 &&
+        now - lastSubmissionAt >= 0 &&
+        now - lastSubmissionAt <=
+          routeApi.NEW_CHAT_TRANSITION_WINDOW_MS;
+      const recentUserNavigation =
+        lastUserNavigationAt > 0 &&
+        now - lastUserNavigationAt >= 0 &&
+        now - lastUserNavigationAt <=
+          routeApi.USER_NAVIGATION_WINDOW_MS;
+      const promptMatches =
+        !lastSubmittedPromptFingerprint ||
+        nextSnapshot.latestUserFingerprint ===
+          lastSubmittedPromptFingerprint;
+      const awaitingSubmittedPrompt =
+        routeChanged &&
+        !fromConversation &&
+        Boolean(toConversation) &&
+        recentSubmission &&
+        (detector.isPending() || submissionUnobserved) &&
+        !recentUserNavigation &&
+        !promptMatches &&
+        now - lastSubmissionAt <= 5_000;
+
+      if (awaitingSubmittedPrompt) {
+        scheduleEvaluation(100);
+        return;
+      }
+
       const preservePendingTurn =
         routeChanged &&
         routeApi.shouldPreserveRouteChange({
           fromPath: currentPath,
-          now: Date.now(),
+          now,
           pending: detector.isPending(),
           provider: provider.id,
           submissionAt: lastSubmissionAt,
-          submissionUnobserved:
-            submissionSequence !== lastEvaluatedSubmissionSequence,
+          submissionUnobserved,
+          submittedPromptPresent: Boolean(
+            lastSubmittedPromptFingerprint,
+          ),
+          targetContainsSubmittedPrompt: promptMatches,
           toPath: nextPath,
+          userNavigationAt: lastUserNavigationAt,
         });
 
       currentPath = nextPath;
@@ -181,8 +259,13 @@
 
     const result = detector.update(nextSnapshot);
     lastEvaluatedSubmissionSequence = submissionSequence;
-    if (result.checkInMs !== null) {
-      scheduleEvaluation(Math.max(50, result.checkInMs + 25));
+    let nextCheck = result.checkInMs;
+    if (stopRequestedAt && nextSnapshot.busy) {
+      nextCheck =
+        nextCheck === null ? 100 : Math.min(nextCheck, 100);
+    }
+    if (nextCheck !== null) {
+      scheduleEvaluation(Math.max(50, nextCheck + 25));
     }
   }
 
@@ -216,14 +299,18 @@
     if (now - lastSubmissionAt < 250) {
       return;
     }
+    const composer = document.querySelector(COMPOSER_SELECTOR);
+    lastSubmittedPromptFingerprint = promptFingerprint(
+      elementText(composer),
+    );
     lastSubmissionAt = now;
     submissionSequence += 1;
     scheduleEvaluation(0);
   }
 
-  function markCancellation() {
-    cancellationSequence += 1;
-    scheduleEvaluation(0);
+  function requestCancellation() {
+    stopRequestedAt = Date.now();
+    scheduleEvaluation(50);
   }
 
   document.addEventListener(
@@ -242,19 +329,42 @@
   document.addEventListener(
     "click",
     (event) => {
+      const clickedElement =
+        event.target instanceof Element ? event.target : null;
+      const conversationLink = clickedElement?.closest("a[href]");
+      if (conversationLink) {
+        try {
+          const destination = new URL(
+            conversationLink.href,
+            location.href,
+          );
+          if (
+            destination.hostname === location.hostname &&
+            routeApi.conversationId(
+              provider.id,
+              destination.pathname,
+            ) &&
+            routeApi.routeIdentity(
+              provider.id,
+              destination.pathname,
+            ) !== routeApi.routeIdentity(provider.id, currentPath)
+          ) {
+            lastUserNavigationAt = Date.now();
+          }
+        } catch {
+          // Ignore malformed or non-navigation link targets.
+        }
+      }
+
       const stopButton =
-        event.target instanceof Element
-          ? event.target.closest(STOP_BUTTON_SELECTOR)
-          : null;
+        clickedElement?.closest(STOP_BUTTON_SELECTOR);
       if (stopButton && !stopButton.disabled) {
-        markCancellation();
+        requestCancellation();
         return;
       }
 
       const button =
-        event.target instanceof Element
-          ? event.target.closest(SEND_BUTTON_SELECTOR)
-          : null;
+        clickedElement?.closest(SEND_BUTTON_SELECTOR);
       if (button && !button.disabled) {
         markSubmission();
       }
@@ -267,9 +377,13 @@
     (event) => {
       if (
         event.key === "Escape" &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
         selectorExists(provider.busySelectors)
       ) {
-        markCancellation();
+        requestCancellation();
         return;
       }
 
@@ -288,8 +402,13 @@
     true,
   );
 
+  window.addEventListener("popstate", () => {
+    lastUserNavigationAt = Date.now();
+  });
+
   window.addEventListener("pageshow", () => {
     currentPath = location.pathname;
+    stopRequestedAt = 0;
     detector.reset(snapshot());
     lastEvaluatedSubmissionSequence = submissionSequence;
   });

@@ -49,6 +49,9 @@ Claude Code and Codex CLI will now play the melody after a completed turn
 when their terminal app is not active. Terminal.app and iTerm2 also detect
 when the originating tab is not selected.
 
+For safety, CLI chimes stay disabled inside tmux and screen because a
+reattached session cannot identify its currently viewing terminal reliably.
+
 Test sound:
   "$BIN_DIR/wmchime" --test
 

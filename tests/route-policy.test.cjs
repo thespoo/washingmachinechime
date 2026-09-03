@@ -79,3 +79,50 @@ test("expires the new-chat route allowance", () => {
     false,
   );
 });
+
+test("rejects a sidebar navigation immediately after submission", () => {
+  assert.equal(
+    shouldPreserveRouteChange({
+      fromPath: "/",
+      now: 2_000,
+      pending: true,
+      provider: "chatgpt",
+      submissionAt: 1_000,
+      submissionUnobserved: false,
+      toPath: "/c/historical-chat",
+      userNavigationAt: 1_900,
+    }),
+    false,
+  );
+});
+
+test("requires the target route to contain the submitted prompt", () => {
+  assert.equal(
+    shouldPreserveRouteChange({
+      fromPath: "/new",
+      now: 2_000,
+      pending: true,
+      provider: "claude",
+      submissionAt: 1_000,
+      submissionUnobserved: false,
+      submittedPromptPresent: true,
+      targetContainsSubmittedPrompt: false,
+      toPath: "/chat/historical-chat",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPreserveRouteChange({
+      fromPath: "/new",
+      now: 2_000,
+      pending: true,
+      provider: "claude",
+      submissionAt: 1_000,
+      submissionUnobserved: false,
+      submittedPromptPresent: true,
+      targetContainsSubmittedPrompt: true,
+      toPath: "/chat/new-chat",
+    }),
+    true,
+  );
+});
