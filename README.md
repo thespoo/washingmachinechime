@@ -54,7 +54,13 @@ under `~/.local/bin`, and safely appends a `Stop` hook to:
 - `~/.codex/hooks.json`
 
 Existing hooks and settings are preserved. Changed config files receive a
-timestamped backup.
+timestamped backup, and symlink-managed config files keep their symlinks.
+
+Codex requires newly discovered hooks to be reviewed before they run. After
+installing, start interactive Codex, run `/hooks`, review the new user-level
+`Stop` hook, and mark it trusted. Codex skips the hook—including during
+`codex exec`—until this one-time step is complete. The installer deliberately
+does not bypass Codex's trust review.
 
 Test the sound and inspect focus detection:
 
@@ -68,6 +74,10 @@ controlling TTY to the selected tab. macOS may request one-time permission for
 `osascript` to inspect the selected tab. Other terminals, including integrated
 terminals in Cursor and VS Code, use app-level focus: the melody plays when
 that app is in the background and stays quiet while the app is frontmost.
+
+Inside tmux or screen, the notifier also uses app-level focus. A multiplexer
+pane TTY cannot be compared safely with the host terminal tab's TTY, so the
+notifier stays quiet whenever that terminal app is frontmost.
 
 If focus cannot be identified reliably, the notifier stays quiet. This
 fail-closed behavior avoids playing the full melody while you are already

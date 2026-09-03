@@ -16,6 +16,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALL_ROOT="$HOME/Library/Application Support/LaundryDoneAIChime"
 BIN_DIR="$HOME/.local/bin"
+BIN_LINK="$BIN_DIR/wmchime"
+
+if [[ -e "$BIN_LINK" || -L "$BIN_LINK" ]]; then
+  if [[ ! -L "$BIN_LINK" ]] ||
+    [[ "$(readlink "$BIN_LINK")" != "$INSTALL_ROOT/wmchime.mjs" ]]; then
+    echo "Refusing to replace existing command: $BIN_LINK" >&2
+    exit 1
+  fi
+fi
 
 mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
 
@@ -27,7 +36,7 @@ cp "$PROJECT_DIR/scripts/configure-hooks.mjs" \
   "$INSTALL_ROOT/configure-hooks.mjs"
 
 chmod 755 "$INSTALL_ROOT/wmchime.mjs"
-ln -sfn "$INSTALL_ROOT/wmchime.mjs" "$BIN_DIR/wmchime"
+ln -sfn "$INSTALL_ROOT/wmchime.mjs" "$BIN_LINK"
 
 node "$INSTALL_ROOT/configure-hooks.mjs" \
   --executable "$INSTALL_ROOT/wmchime.mjs"
@@ -48,4 +57,8 @@ Check focus detection:
 
 If macOS asks whether osascript may control Terminal or iTerm2, allow it to
 enable exact tab detection. App-level focus detection works without it.
+
+Required Codex step:
+  Start interactive Codex, run /hooks, review the new user-level Stop hook,
+  and trust it. Codex skips new hooks (including in codex exec) until you do.
 EOF

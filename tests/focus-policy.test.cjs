@@ -42,3 +42,14 @@ test("fails closed when focus state is unavailable", () => {
   assert.equal(shouldPlayForPage({}), false);
   assert.equal(shouldPlayForPage(null), false);
 });
+
+test("uses current browser focus instead of stale page visibility", () => {
+  assert.equal(
+    shouldPlayForPage({
+      pageVisible: false,
+      tabActive: true,
+      windowFocused: true,
+    }),
+    false,
+  );
+});

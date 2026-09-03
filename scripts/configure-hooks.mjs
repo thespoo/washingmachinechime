@@ -3,8 +3,10 @@
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   statSync,
   writeFileSync,
@@ -120,30 +122,62 @@ function readJson(path) {
   }
 }
 
+function configLocation(path) {
+  let fileInfo;
+  try {
+    fileInfo = lstatSync(path);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return { exists: false, logicalPath: path, targetPath: path };
+    }
+    throw error;
+  }
+
+  if (!fileInfo.isSymbolicLink()) {
+    return { exists: true, logicalPath: path, targetPath: path };
+  }
+
+  try {
+    return {
+      exists: true,
+      logicalPath: path,
+      targetPath: realpathSync(path),
+    };
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new Error(`Refusing to replace dangling config symlink: ${path}`);
+    }
+    throw error;
+  }
+}
+
 function serialized(config) {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
-function writeJsonAtomically(path, config, backup) {
+function writeJsonAtomically(location, config, backup) {
+  const { exists: existed, logicalPath, targetPath } = location;
   const next = serialized(config);
-  const existed = existsSync(path);
-  const previous = existed ? readFileSync(path, "utf8") : "";
+  const previous = existed ? readFileSync(targetPath, "utf8") : "";
 
   if (previous === next) {
     return false;
   }
 
-  mkdirSync(dirname(path), { recursive: true });
+  mkdirSync(dirname(targetPath), { recursive: true });
   if (backup && existed) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    copyFileSync(path, `${path}.wmchime-backup-${timestamp}`);
+    copyFileSync(
+      targetPath,
+      `${logicalPath}.wmchime-backup-${timestamp}`,
+    );
   }
 
-  const temporaryPath = `${path}.wmchime-${process.pid}.tmp`;
+  const temporaryPath = `${targetPath}.wmchime-${process.pid}.tmp`;
   writeFileSync(temporaryPath, next, {
-    mode: existed ? statSync(path).mode : 0o600,
+    mode: existed ? statSync(targetPath).mode & 0o777 : 0o600,
   });
-  renameSync(temporaryPath, path);
+  renameSync(temporaryPath, targetPath);
   return true;
 }
 
@@ -168,23 +202,24 @@ export function configureHooks({
     },
   ];
   const plans = targets.map(({ commandStyle, path }) => {
-    if (uninstall && !existsSync(path)) {
-      return { path, skip: true };
+    const location = configLocation(path);
+    if (uninstall && !location.exists) {
+      return { location, path, skip: true };
     }
 
-    const current = readJson(path);
+    const current = readJson(location.targetPath);
     const next = uninstall
       ? removeWmChimeHooks(current)
       : addWmChimeHook(current, executable, "Stop", commandStyle);
-    return { next, path, skip: false };
+    return { location, next, path, skip: false };
   });
 
-  return plans.map(({ next, path, skip }) => {
+  return plans.map(({ location, next, path, skip }) => {
     if (skip) {
       return { changed: false, path };
     }
     return {
-      changed: writeJsonAtomically(path, next, backup),
+      changed: writeJsonAtomically(location, next, backup),
       path,
     };
   });

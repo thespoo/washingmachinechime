@@ -41,6 +41,13 @@ test("maps Terminal, iTerm, and Cursor environments to bundle IDs", () => {
       "com.todesktop.230313mzl4w4u92",
     ),
   );
+  assert.deepEqual(
+    terminalBundleCandidates({
+      __CFBundleIdentifier: "com.todesktop.230313mzl4w4u92",
+      TERM_PROGRAM: "vscode",
+    }),
+    ["com.todesktop.230313mzl4w4u92"],
+  );
 });
 
 test("detects when the originating terminal app is in the background", () => {
@@ -95,5 +102,31 @@ test("matches all Warp release-channel bundle IDs", () => {
   assert.equal(
     bundleMatches("dev.warp.Warp-Preview", "dev.warp.Warp-Stable"),
     true,
+  );
+});
+
+test("fails closed on mismatched pane tty inside a frontmost multiplexer", () => {
+  assert.deepEqual(
+    evaluateMacFocus({
+      frontmostBundleId: "com.googlecode.iterm2",
+      multiplexer: true,
+      originTty: "ttys-pane",
+      selectedTty: "ttys-host",
+      sourceBundles: ["com.googlecode.iterm2"],
+    }),
+    { shouldPlay: false, reason: "terminal-multiplexer-active" },
+  );
+});
+
+test("still plays for a background terminal when using a multiplexer", () => {
+  assert.deepEqual(
+    evaluateMacFocus({
+      frontmostBundleId: "com.apple.Safari",
+      multiplexer: true,
+      originTty: "ttys-pane",
+      selectedTty: "",
+      sourceBundles: ["com.googlecode.iterm2"],
+    }),
+    { shouldPlay: true, reason: "terminal-not-frontmost" },
   );
 });

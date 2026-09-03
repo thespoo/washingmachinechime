@@ -23,6 +23,7 @@
       ],
       "js": [
         "lib/completion-detector.js",
+        "lib/route-policy.js",
         "content.js"
       ],
       "run_at": "document_idle"

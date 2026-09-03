@@ -10,6 +10,7 @@ function state(overrides = {}) {
     assistantPresent: true,
     assistantToken: "1:old",
     busy: false,
+    cancellationToken: "0",
     error: false,
     submissionToken: "0",
     userToken: "1:first",
@@ -216,6 +217,47 @@ test("ignores conversation history that hydrates after initialization", () => {
     state({
       assistantToken: "2:more-history",
       userToken: "2:more-history",
+    }),
+    100,
+  );
+
+  assert.equal(detector.isPending(), false);
+  assert.deepEqual(completions, []);
+});
+
+test("a manual stop cancels the pending response", () => {
+  const completions = [];
+  const detector = new TurnCompletionDetector({
+    onComplete: (completion) => completions.push(completion),
+    settleMs: 10,
+  });
+
+  detector.reset(state());
+  detector.update(
+    state({
+      assistantToken: "2:partial",
+      busy: true,
+      submissionToken: "1",
+      userToken: "2:second",
+    }),
+    5,
+  );
+  detector.update(
+    state({
+      assistantToken: "2:partial",
+      busy: false,
+      cancellationToken: "1",
+      submissionToken: "1",
+      userToken: "2:second",
+    }),
+    6,
+  );
+  detector.update(
+    state({
+      assistantToken: "2:partial",
+      cancellationToken: "1",
+      submissionToken: "1",
+      userToken: "2:second",
     }),
     100,
   );

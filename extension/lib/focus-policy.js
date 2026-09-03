@@ -18,14 +18,6 @@
       return true;
     }
 
-    if (
-      state.tabActive === true &&
-      state.windowFocused === true &&
-      state.pageVisible === false
-    ) {
-      return true;
-    }
-
     return false;
   }
 

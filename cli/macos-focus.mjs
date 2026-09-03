@@ -53,7 +53,7 @@ export function terminalBundleCandidates(env = process.env) {
   const candidates = new Set();
   const inheritedBundle = String(env.__CFBundleIdentifier || "").trim();
   if (inheritedBundle) {
-    candidates.add(inheritedBundle);
+    return [inheritedBundle];
   }
 
   const termProgram = String(env.TERM_PROGRAM || "")
@@ -163,6 +163,7 @@ export function getSelectedTerminalTty(bundleId) {
 
 export function evaluateMacFocus({
   frontmostBundleId,
+  multiplexer = false,
   originTty,
   selectedTty,
   sourceBundles,
@@ -183,6 +184,10 @@ export function evaluateMacFocus({
     return { shouldPlay: true, reason: "terminal-not-frontmost" };
   }
 
+  if (multiplexer) {
+    return { shouldPlay: false, reason: "terminal-multiplexer-active" };
+  }
+
   const normalizedOrigin = normalizeTty(originTty);
   const normalizedSelected = normalizeTty(selectedTty);
   if (
@@ -201,8 +206,10 @@ export function inspectMacFocus(env = process.env) {
   const frontmostBundleId = getFrontmostBundleId();
   const originTty = findAncestorTty();
   const selectedTty = getSelectedTerminalTty(frontmostBundleId);
+  const multiplexer = Boolean(env.TMUX || env.STY);
   const decision = evaluateMacFocus({
     frontmostBundleId,
+    multiplexer,
     originTty,
     selectedTty,
     sourceBundles,
@@ -211,6 +218,7 @@ export function inspectMacFocus(env = process.env) {
   return {
     ...decision,
     frontmostBundleId,
+    multiplexer,
     originTty,
     selectedTty,
     sourceBundles,

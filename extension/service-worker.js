@@ -44,8 +44,7 @@ async function ensureOffscreenDocument() {
   await creatingOffscreenDocument;
 }
 
-async function playSound(volume) {
-  await ensureOffscreenDocument();
+async function sendSound(volume) {
   const response = await chrome.runtime.sendMessage({
     target: "offscreen",
     type: "PLAY_SOUND",
@@ -54,6 +53,11 @@ async function playSound(volume) {
   if (!response || !response.played) {
     throw new Error("Audio playback failed.");
   }
+}
+
+async function playSound(volume) {
+  await ensureOffscreenDocument();
+  await sendSound(volume);
 }
 
 async function getSettings() {
@@ -117,11 +121,13 @@ async function handleCompletion(message, sender) {
   }
 
   try {
+    // Offscreen document setup can take long enough for the user to switch
+    // tabs, so resolve it before taking the authoritative focus snapshot.
+    await ensureOffscreenDocument();
     const tab = await chrome.tabs.get(sender.tab.id);
     const window = await chrome.windows.get(tab.windowId);
     const shouldPlay =
       globalThis.WashingMachineChimeFocusPolicy.shouldPlayForPage({
-        pageVisible: message.pageVisible,
         tabActive: tab.active,
         windowFocused: window.focused,
       });
@@ -131,7 +137,7 @@ async function handleCompletion(message, sender) {
     }
 
     const volume = Math.min(1, Math.max(0, Number(settings.volume) || 0));
-    await playSound(volume);
+    await sendSound(volume);
     return { played: true };
   } catch {
     // If focus cannot be verified, fail closed so an active conversation

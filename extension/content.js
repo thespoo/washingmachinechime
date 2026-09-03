@@ -2,7 +2,8 @@
   "use strict";
 
   const detectorApi = globalThis.WashingMachineChimeDetector;
-  if (!detectorApi) {
+  const routeApi = globalThis.WashingMachineChimeRoutePolicy;
+  if (!detectorApi || !routeApi) {
     return;
   }
 
@@ -58,6 +59,7 @@
     'button[aria-label="Send message" i]',
     'button[aria-label="Send prompt" i]',
   ].join(",");
+  const STOP_BUTTON_SELECTOR = provider.busySelectors.join(",");
 
   function queryFirstPopulated(selectors) {
     for (const selector of selectors) {
@@ -94,6 +96,7 @@
     return selectors.some((selector) => document.querySelector(selector));
   }
 
+  let cancellationSequence = 0;
   let submissionSequence = 0;
   let lastSubmissionAt = 0;
 
@@ -115,13 +118,14 @@
       assistantPresent: assistantElements.length > 0,
       assistantToken: collectionToken(assistantElements),
       busy: selectorExists(provider.busySelectors),
+      cancellationToken: String(cancellationSequence),
       error: assistantErrored,
       submissionToken: String(submissionSequence),
       userToken: collectionToken(userElements),
     };
   }
 
-  let currentUrl = location.href;
+  let currentPath = location.pathname;
   let evaluationTimer = null;
   let lastEvaluatedSubmissionSequence = submissionSequence;
 
@@ -138,7 +142,6 @@
           type: "TURN_COMPLETED",
           completionId,
           provider: provider.id,
-          pageVisible: document.visibilityState === "visible",
         })
         .catch(() => {
           // The extension may have reloaded while this page remained open.
@@ -150,12 +153,26 @@
     evaluationTimer = null;
     const nextSnapshot = snapshot();
 
-    if (location.href !== currentUrl) {
-      currentUrl = location.href;
-      if (
-        !detector.isPending() &&
-        submissionSequence === lastEvaluatedSubmissionSequence
-      ) {
+    const nextPath = location.pathname;
+    if (nextPath !== currentPath) {
+      const routeChanged =
+        routeApi.routeIdentity(provider.id, nextPath) !==
+        routeApi.routeIdentity(provider.id, currentPath);
+      const preservePendingTurn =
+        routeChanged &&
+        routeApi.shouldPreserveRouteChange({
+          fromPath: currentPath,
+          now: Date.now(),
+          pending: detector.isPending(),
+          provider: provider.id,
+          submissionAt: lastSubmissionAt,
+          submissionUnobserved:
+            submissionSequence !== lastEvaluatedSubmissionSequence,
+          toPath: nextPath,
+        });
+
+      currentPath = nextPath;
+      if (routeChanged && !preservePendingTurn) {
         detector.reset(nextSnapshot);
         lastEvaluatedSubmissionSequence = submissionSequence;
         return;
@@ -204,6 +221,11 @@
     scheduleEvaluation(0);
   }
 
+  function markCancellation() {
+    cancellationSequence += 1;
+    scheduleEvaluation(0);
+  }
+
   document.addEventListener(
     "submit",
     (event) => {
@@ -220,6 +242,15 @@
   document.addEventListener(
     "click",
     (event) => {
+      const stopButton =
+        event.target instanceof Element
+          ? event.target.closest(STOP_BUTTON_SELECTOR)
+          : null;
+      if (stopButton && !stopButton.disabled) {
+        markCancellation();
+        return;
+      }
+
       const button =
         event.target instanceof Element
           ? event.target.closest(SEND_BUTTON_SELECTOR)
@@ -234,6 +265,14 @@
   document.addEventListener(
     "keydown",
     (event) => {
+      if (
+        event.key === "Escape" &&
+        selectorExists(provider.busySelectors)
+      ) {
+        markCancellation();
+        return;
+      }
+
       const inComposer =
         event.target instanceof Element &&
         event.target.closest(COMPOSER_SELECTOR);
@@ -249,16 +288,9 @@
     true,
   );
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message && message.type === "CHECK_PAGE_STATE") {
-      sendResponse({
-        pageVisible: document.visibilityState === "visible",
-      });
-    }
-  });
-
   window.addEventListener("pageshow", () => {
-    currentUrl = location.href;
+    currentPath = location.pathname;
     detector.reset(snapshot());
+    lastEvaluatedSubmissionSequence = submissionSequence;
   });
 })();

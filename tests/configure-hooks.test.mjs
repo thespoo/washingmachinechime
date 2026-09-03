@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import {
+  existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -119,4 +122,47 @@ test("invalid existing JSON prevents either config from changing", (t) => {
     /Cannot parse/,
   );
   assert.equal(readFileSync(claudePath, "utf8"), '{"theme":"dark"}\n');
+});
+
+test("updates a symlink target without replacing the config symlink", (t) => {
+  const home = temporaryHome(t);
+  const dotfilesDirectory = join(home, "dotfiles");
+  const claudeDirectory = join(home, ".claude");
+  const targetPath = join(dotfilesDirectory, "claude-settings.json");
+  const linkPath = join(claudeDirectory, "settings.json");
+  mkdirSync(dotfilesDirectory, { recursive: true });
+  mkdirSync(claudeDirectory, { recursive: true });
+  writeFileSync(targetPath, '{"theme":"dark"}\n');
+  symlinkSync(targetPath, linkPath);
+
+  configureHooks({
+    backup: false,
+    executable: join(home, "wmchime.mjs"),
+    home,
+  });
+
+  assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
+  const target = readJson(targetPath);
+  assert.equal(target.theme, "dark");
+  assert.equal(isWmChimeHook(target.hooks.Stop[0].hooks[0]), true);
+});
+
+test("refuses to replace a dangling config symlink", (t) => {
+  const home = temporaryHome(t);
+  const claudeDirectory = join(home, ".claude");
+  const linkPath = join(claudeDirectory, "settings.json");
+  mkdirSync(claudeDirectory, { recursive: true });
+  symlinkSync(join(home, "missing-settings.json"), linkPath);
+
+  assert.throws(
+    () =>
+      configureHooks({
+        backup: false,
+        executable: join(home, "wmchime.mjs"),
+        home,
+      }),
+    /dangling config symlink/,
+  );
+  assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
+  assert.equal(existsSync(join(home, ".codex", "hooks.json")), false);
 });

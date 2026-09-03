@@ -16,6 +16,7 @@
       assistantPresent: Boolean(snapshot && snapshot.assistantPresent),
       assistantToken: String((snapshot && snapshot.assistantToken) || ""),
       busy: Boolean(snapshot && snapshot.busy),
+      cancellationToken: String((snapshot && snapshot.cancellationToken) || ""),
       error: Boolean(snapshot && snapshot.error),
       submissionToken: String((snapshot && snapshot.submissionToken) || ""),
       userToken: String((snapshot && snapshot.userToken) || ""),
@@ -73,9 +74,13 @@
       const previous = this.previous;
       const submissionChanged =
         snapshot.submissionToken !== previous.submissionToken;
+      const cancellationChanged =
+        snapshot.cancellationToken !== previous.cancellationToken;
       const busyStarted = snapshot.busy && !previous.busy;
 
-      if (
+      if (cancellationChanged) {
+        this.pending = false;
+      } else if (
         (!this.pending && (submissionChanged || busyStarted)) ||
         (this.pending && submissionChanged)
       ) {
