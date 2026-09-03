@@ -10,6 +10,7 @@
   "use strict";
 
   const NEW_CHAT_TRANSITION_WINDOW_MS = 30_000;
+  const USER_NAVIGATION_WINDOW_MS = 2_000;
 
   function conversationId(provider, pathname) {
     const path = String(pathname || "");
@@ -32,7 +33,10 @@
     provider,
     submissionAt,
     submissionUnobserved,
+    submittedPromptPresent = false,
+    targetContainsSubmittedPrompt = false,
     toPath,
+    userNavigationAt = 0,
   }) {
     const fromConversation = conversationId(provider, fromPath);
     const toConversation = conversationId(provider, toPath);
@@ -50,6 +54,18 @@
       submissionAt > 0 &&
       now - submissionAt >= 0 &&
       now - submissionAt <= NEW_CHAT_TRANSITION_WINDOW_MS;
+    const recentUserNavigation =
+      Number.isFinite(userNavigationAt) &&
+      userNavigationAt > 0 &&
+      now - userNavigationAt >= 0 &&
+      now - userNavigationAt <= USER_NAVIGATION_WINDOW_MS;
+
+    if (
+      recentUserNavigation ||
+      (submittedPromptPresent && !targetContainsSubmittedPrompt)
+    ) {
+      return false;
+    }
 
     return Boolean(
       !fromConversation &&
@@ -61,6 +77,7 @@
 
   return {
     NEW_CHAT_TRANSITION_WINDOW_MS,
+    USER_NAVIGATION_WINDOW_MS,
     conversationId,
     routeIdentity,
     shouldPreserveRouteChange,

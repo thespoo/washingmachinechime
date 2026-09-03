@@ -27,7 +27,7 @@ test("finds the first controlling tty in the parent chain", () => {
   assert.equal(findAncestorTty(100, table), "ttys007");
 });
 
-test("maps Terminal, iTerm, and Cursor environments to bundle IDs", () => {
+test("maps unambiguous Terminal, iTerm, and Cursor environments", () => {
   assert.deepEqual(
     terminalBundleCandidates({ TERM_PROGRAM: "Apple_Terminal" }),
     ["com.apple.Terminal"],
@@ -36,8 +36,16 @@ test("maps Terminal, iTerm, and Cursor environments to bundle IDs", () => {
     terminalBundleCandidates({ TERM_PROGRAM: "iTerm.app" }),
     ["com.googlecode.iterm2"],
   );
+  assert.deepEqual(
+    terminalBundleCandidates({ TERM_PROGRAM: "vscode" }),
+    [],
+  );
   assert.ok(
-    terminalBundleCandidates({ TERM_PROGRAM: "vscode" }).includes(
+    terminalBundleCandidates({
+      TERM_PROGRAM: "vscode",
+      VSCODE_GIT_ASKPASS_NODE:
+        "/Applications/Cursor.app/Contents/Resources/app/node",
+    }).includes(
       "com.todesktop.230313mzl4w4u92",
     ),
   );
@@ -114,11 +122,11 @@ test("fails closed on mismatched pane tty inside a frontmost multiplexer", () =>
       selectedTty: "ttys-host",
       sourceBundles: ["com.googlecode.iterm2"],
     }),
-    { shouldPlay: false, reason: "terminal-multiplexer-active" },
+    { shouldPlay: false, reason: "terminal-multiplexer-unresolved" },
   );
 });
 
-test("still plays for a background terminal when using a multiplexer", () => {
+test("fails closed for a multiplexer even when its inherited app is behind", () => {
   assert.deepEqual(
     evaluateMacFocus({
       frontmostBundleId: "com.apple.Safari",
@@ -127,6 +135,6 @@ test("still plays for a background terminal when using a multiplexer", () => {
       selectedTty: "",
       sourceBundles: ["com.googlecode.iterm2"],
     }),
-    { shouldPlay: true, reason: "terminal-not-frontmost" },
+    { shouldPlay: false, reason: "terminal-multiplexer-unresolved" },
   );
 });

@@ -75,9 +75,11 @@ controlling TTY to the selected tab. macOS may request one-time permission for
 terminals in Cursor and VS Code, use app-level focus: the melody plays when
 that app is in the background and stays quiet while the app is frontmost.
 
-Inside tmux or screen, the notifier also uses app-level focus. A multiplexer
-pane TTY cannot be compared safely with the host terminal tab's TTY, so the
-notifier stays quiet whenever that terminal app is frontmost.
+Inside tmux or screen, CLI chimes stay disabled. Reattached sessions retain
+their original terminal identity, so neither app nor pane focus can be proven
+reliably; failing closed prevents a chime while an active session is visible.
+Likewise, an integrated Cursor/VS Code terminal stays quiet if macOS does not
+expose enough environment data to distinguish the two applications.
 
 If focus cannot be identified reliably, the notifier stays quiet. This
 fail-closed behavior avoids playing the full melody while you are already
