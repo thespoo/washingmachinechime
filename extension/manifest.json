@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Laundry Done: AI Chime",
+  "version": "0.1.0",
+  "description": "Plays a cheerful washer-style melody when Claude or ChatGPT finishes while you are away.",
+  "minimum_chrome_version": "109",
+  "permissions": [
+    "offscreen",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Laundry Done: AI Chime"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "lib/completion-detector.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

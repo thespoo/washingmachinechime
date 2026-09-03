@@ -1,0 +1,15 @@
+{
+  "name": "washing-machine-chime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Play a washing-machine finish melody when AI assistants finish while you are away.",
+  "scripts": {
+    "generate:audio": "node scripts/generate-chime.mjs",
+    "check": "node scripts/check-project.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

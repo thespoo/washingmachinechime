@@ -1,0 +1,163 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+body {
+  background: #f7f7f2;
+  color: #20211f;
+  margin: 0;
+  width: 310px;
+}
+
+main {
+  padding: 20px;
+}
+
+.title-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+h1 {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.title-row p {
+  color: #696b65;
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.washer {
+  align-items: center;
+  background: #313633;
+  border-radius: 8px;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 20%);
+  display: flex;
+  height: 42px;
+  justify-content: center;
+  position: relative;
+  width: 42px;
+}
+
+.washer::before {
+  background: #9ee0d0;
+  border-radius: 50%;
+  content: "";
+  height: 5px;
+  position: absolute;
+  right: 7px;
+  top: 6px;
+  width: 5px;
+}
+
+.washer span {
+  background: #a9cfda;
+  border: 3px solid #e8f4f4;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px #668b96;
+  height: 22px;
+  margin-top: 7px;
+  width: 22px;
+}
+
+.toggle-row,
+.volume-row {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  font-weight: 600;
+  justify-content: space-between;
+}
+
+.toggle-row {
+  background: #e9ece4;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  padding: 12px;
+}
+
+.toggle-row input {
+  accent-color: #247964;
+  height: 18px;
+  width: 18px;
+}
+
+.volume-row output {
+  color: #696b65;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+input[type="range"] {
+  accent-color: #247964;
+  margin: 9px 0 18px;
+  width: 100%;
+}
+
+button {
+  background: #247964;
+  border: 0;
+  border-radius: 9px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 11px 12px;
+  width: 100%;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.status {
+  color: #4b5d57;
+  font-size: 12px;
+  min-height: 15px;
+  text-align: center;
+}
+
+.footnote {
+  border-top: 1px solid #dcddd6;
+  color: #777a72;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 14px 0 0;
+  padding-top: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #202320;
+    color: #f1f3ee;
+  }
+
+  .title-row p,
+  .volume-row output,
+  .footnote {
+    color: #abb0a8;
+  }
+
+  .toggle-row {
+    background: #303630;
+  }
+
+  .status {
+    color: #aed5c9;
+  }
+
+  .footnote {
+    border-color: #3a3f3a;
+  }
+}

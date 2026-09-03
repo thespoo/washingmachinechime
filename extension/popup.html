@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Laundry Done: AI Chime</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <div class="title-row">
+        <div aria-hidden="true" class="washer">
+          <span></span>
+        </div>
+        <div>
+          <h1>Laundry Done</h1>
+          <p>AI completion chime</p>
+        </div>
+      </div>
+
+      <label class="toggle-row">
+        <span>Play when I’m away</span>
+        <input id="enabled" type="checkbox" />
+      </label>
+
+      <label class="volume-row" for="volume">
+        <span>Volume</span>
+        <output id="volume-value">70%</output>
+      </label>
+      <input id="volume" max="100" min="0" step="5" type="range" />
+
+      <button id="test-sound" type="button">Play test melody</button>
+      <p aria-live="polite" class="status" id="status"></p>
+
+      <p class="footnote">
+        Watches Claude and ChatGPT locally. Conversation text never leaves
+        the page.
+      </p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
