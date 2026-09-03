@@ -27,6 +27,13 @@ function readJson(path) {
 
 test("installs hooks without replacing existing hook groups", (t) => {
   const home = temporaryHome(t);
+  const executable = join(
+    home,
+    "Library",
+    "Application Support",
+    "LaundryDoneAIChime",
+    "wmchime.mjs",
+  );
   const claudeDirectory = join(home, ".claude");
   mkdirSync(claudeDirectory, { recursive: true });
   writeFileSync(
@@ -46,12 +53,12 @@ test("installs hooks without replacing existing hook groups", (t) => {
 
   const first = configureHooks({
     backup: false,
-    executable: join(home, "wmchime.mjs"),
+    executable,
     home,
   });
   const second = configureHooks({
     backup: false,
-    executable: join(home, "wmchime.mjs"),
+    executable,
     home,
   });
 
@@ -62,6 +69,9 @@ test("installs hooks without replacing existing hook groups", (t) => {
   assert.equal(claude.hooks.Stop[0].hooks[0].command, "/tmp/existing");
   assert.equal(isWmChimeHook(claude.hooks.Stop[1].hooks[0]), true);
   assert.equal(isWmChimeHook(codex.hooks.Stop[0].hooks[0]), true);
+  assert.deepEqual(claude.hooks.Stop[1].hooks[0].args, ["--hook"]);
+  assert.equal(codex.hooks.Stop[0].hooks[0].args, undefined);
+  assert.equal(codex.hooks.Stop[0].hooks[0].command, `'${executable}' --hook`);
   assert.deepEqual(first.map((result) => result.changed), [true, true]);
   assert.deepEqual(second.map((result) => result.changed), [false, false]);
 });

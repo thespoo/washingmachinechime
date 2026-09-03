@@ -22,11 +22,17 @@ export function isWmChimeHook(hook) {
     return false;
   }
 
-  const commandName = basename(String(hook.command || ""));
+  const command = String(hook.command || "");
+  const referencesExecutable =
+    basename(command) === "wmchime.mjs" ||
+    /(?:^|[/\\])wmchime\.mjs(?:["'\s]|$)/.test(command);
+  const passesHookArgument =
+    (Array.isArray(hook.args) && hook.args.includes("--hook")) ||
+    /(?:^|\s)--hook(?:\s|$)/.test(command);
+
   return (
-    commandName === "wmchime.mjs" &&
-    Array.isArray(hook.args) &&
-    hook.args.includes("--hook")
+    referencesExecutable &&
+    passesHookArgument
   );
 }
 
@@ -60,7 +66,16 @@ export function removeWmChimeHooks(config, eventName = "Stop") {
   return updated;
 }
 
-export function addWmChimeHook(config, executable, eventName = "Stop") {
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+export function addWmChimeHook(
+  config,
+  executable,
+  eventName = "Stop",
+  commandStyle = "exec",
+) {
   const updated = removeWmChimeHooks(config, eventName);
   updated.hooks ||= {};
 
@@ -72,15 +87,22 @@ export function addWmChimeHook(config, executable, eventName = "Stop") {
   }
 
   updated.hooks[eventName] ||= [];
+  const commandHook =
+    commandStyle === "shell"
+      ? {
+          type: "command",
+          command: `${shellQuote(resolve(executable))} --hook`,
+          timeout: 10,
+        }
+      : {
+          type: "command",
+          command: resolve(executable),
+          args: ["--hook"],
+          timeout: 10,
+        };
+
   updated.hooks[eventName].push({
-    hooks: [
-      {
-        type: "command",
-        command: resolve(executable),
-        args: ["--hook"],
-        timeout: 10,
-      },
-    ],
+    hooks: [commandHook],
   });
 
   return updated;
@@ -136,10 +158,16 @@ export function configureHooks({
   }
 
   const targets = [
-    join(home, ".claude", "settings.json"),
-    join(home, ".codex", "hooks.json"),
+    {
+      commandStyle: "exec",
+      path: join(home, ".claude", "settings.json"),
+    },
+    {
+      commandStyle: "shell",
+      path: join(home, ".codex", "hooks.json"),
+    },
   ];
-  const plans = targets.map((path) => {
+  const plans = targets.map(({ commandStyle, path }) => {
     if (uninstall && !existsSync(path)) {
       return { path, skip: true };
     }
@@ -147,7 +175,7 @@ export function configureHooks({
     const current = readJson(path);
     const next = uninstall
       ? removeWmChimeHooks(current)
-      : addWmChimeHook(current, executable);
+      : addWmChimeHook(current, executable, "Stop", commandStyle);
     return { next, path, skip: false };
   });
 
